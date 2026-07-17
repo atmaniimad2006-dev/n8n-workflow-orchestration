@@ -1,0 +1,1389 @@
+{
+  "name": "whatssap manager system",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "61637e77-9475-4743-9d67-ed8f6a566695",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -3024,
+        432
+      ],
+      "id": "b1b82386-d5c1-45c4-b2a1-674b0f80d956",
+      "name": "Webhook",
+      "webhookId": "YOUR_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "32fbff91-fee7-4440-9ff4-43ed1996990a",
+              "leftValue": "={{ $json.body.data.key.remoteJid }}",
+              "rightValue": "YOUR_GROUP_ID@g.us",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "cae839b4-3282-455b-b79a-236cfe4d8e12",
+              "leftValue": "={{ $json.body.data.messageType }}",
+              "rightValue": "imageMessage",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -2432,
+        432
+      ],
+      "id": "fb51d229-50a4-4f35-9730-483c2c11e08a",
+      "name": "Filter4"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_DOCUMENT_ID",
+          "mode": "list",
+          "cachedResultName": "Monk_Mode_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Users_Registry",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Phone_Number",
+              "lookupValue": "={{ \"0\" + $('Webhook').item.json.body.data.key.participantAlt.split('@')[0].slice(-9) }}"
+            },
+            {
+              "lookupColumn": "Phone_Number",
+              "lookupValue": "={{ \"212\" + $('Webhook').item.json.body.data.key.participantAlt.split('@')[0].slice(-9) }}"
+            },
+            {
+              "lookupColumn": "Phone_Number",
+              "lookupValue": "={{ \"+212\" + $('Webhook').item.json.body.data.key.participantAlt.split('@')[0].slice(-9) }}"
+            },
+            {
+              "lookupColumn": "Phone_Number",
+              "lookupValue": "={{ $('Webhook').item.json.body.data.key.participantAlt.split('@')[0].slice(-9) }}"
+            }
+          ]
+        },
+        "combineFilters": "OR",
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1888,
+        432
+      ],
+      "id": "d8b79f1e-1264-4419-81ab-d69fa1470a5f",
+      "name": "Get row(s) in sheet4",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraction des données du Webhook d'origine\nconst webhookData = $('Webhook').first().json.body.data;\n\n// Extraction du base64 (Evolution API l'injecte ici avec l'option Webhook Base64)\nconst imageBase64 = webhookData.message.base64;\nconst mimeType = webhookData.message.imageMessage.mimetype || 'image/jpeg';\n\nif (!imageBase64) {\n  throw new Error(\"Base64 introuvable dans le webhook. Vérifie qu'Evolution API envoie bien l'image.\");\n}\n\nreturn [{\n  json: $input.item.json,\n  binary: {\n    data: {\n      data: imageBase64,\n      mimeType: mimeType,\n      fileName: \"proof.jpeg\"\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1424,
+        432
+      ],
+      "id": "a56c086c-8eba-4211-b0da-b4e08a7710a2",
+      "name": "Code in JavaScript9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extraction d l-waqt mn Evolution API (Timestamp)\nconst msg_timestamp = $node[\"Webhook\"]?.json?.body?.data?.messageTimestamp;\nif (!msg_timestamp) throw new Error(\"Timestamp introuvable dans le webhook.\");\nconst date_obj = new Date(msg_timestamp * 1000);\n\n// 2. Fetch l-Data mn Google Sheets b-Protection\n// Ila l-client ma-msjelch, sheetData ghatkoun objet khawi bla may-crashi\nconst sheetData = $node[\"Get row(s) in sheet4\"]?.json || {};\nconst user_tz = sheetData[\"TIME ZONE\"] || \"Africa/Casablanca\";\n\n// 3. Calcul de la Date Exacte (Timezone-Aware) - THE CORE\nconst formatter = new Intl.DateTimeFormat('en-CA', { \n    timeZone: user_tz, \n    year: 'numeric', \n    month: '2-digit', \n    day: '2-digit' \n});\nconst local_date_str = formatter.format(date_obj);\n\n// 4. Extraction l-Caption w Validation b-Protection\n// Optional chaining (?.) kay-protegi l-code mn l-crash ila makanch imageMessage\nconst caption = ($node[\"Webhook\"]?.json?.body?.data?.message?.imageMessage?.caption || \"\").toLowerCase();\nlet task_type = \"None\";\nlet is_valid = false;\n\n// Routing direct\nif (caption.includes(\"fajr\")) {\n    task_type = \"Fajr\";\n    is_valid = true;\n} else if (caption.includes(\"quran\")) {\n    task_type = \"Quran\";\n    is_valid = true;\n} else if (caption.includes(\"deepwork\")) {\n    task_type = \"DeepWork\";\n    is_valid = true;\n}\n\n// 5. Output l Google Drive w Google Sheets\nreturn [{\n    json: {\n        date: local_date_str, \n        task: task_type,\n        valid: is_valid,\n        phone: sheetData.Phone_Number || \"UNKNOWN_PHONE\",\n        drive_folder: sheetData.Drive_Folder_ID || \"UNKNOWN_FOLDER\",\n        timezone: user_tz \n    },\n    binary: $('Code in JavaScript9').first().binary \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        432
+      ],
+      "id": "f4c30db8-6b0d-40ca-884f-cd461d1661b0",
+      "name": "Code in JavaScript10"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ffa1a8d3-fa16-4a05-a661-808d2e4f7e6f",
+              "leftValue": "={{ $json.valid.toString() }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -848,
+        432
+      ],
+      "id": "1cc8152c-6f7c-430f-a5df-9abd94a08f12",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "=data",
+        "name": "={{ $('Code in JavaScript10').item.json.date }}_{{ $('Code in JavaScript10').item.json.task }}.jpg",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "YOUR_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "Monk_Mode_Proofs_Automated",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/YOUR_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -576,
+        416
+      ],
+      "id": "86fd495d-ca97-4936-b23b-48e2f9c06ec2",
+      "name": "Upload file5",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_DOCUMENT_ID",
+          "mode": "list",
+          "cachedResultName": "Monk_Mode_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1744954996,
+          "mode": "list",
+          "cachedResultName": "Feuille 2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit#gid=1744954996"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "UID": "={{ $node[\"Code in JavaScript10\"].json.date + $node[\"Code in JavaScript10\"].json.phone }}",
+            "Fajr_Completed": "={{ $('Code in JavaScript10').item.json.task === 'Fajr' ? true : ($('Get row(s) in sheet5').item.json.Fajr_Completed || undefined) }}",
+            "Fajr_Proof_Link": "={{ $('Code in JavaScript10').item.json.task === 'Fajr' ? $('Upload file5').item.json.webViewLink : ($('Get row(s) in sheet5').item.json.Fajr_Proof_Link || undefined) }}",
+            "DeepWork_Completed": "={{ $('Code in JavaScript10').item.json.task === 'DeepWork' ? true : ($('Get row(s) in sheet5').item.json.DeepWork_Completed || undefined) }}",
+            "DeepWork_Proof_Link": "={{ $node[\"Code in JavaScript10\"].json.task === 'DeepWork' ? $node[\"Upload file5\"].json.webViewLink : ($node[\"Get row(s) in sheet5\"].json.DeepWork_Proof_Link || undefined) }}",
+            "Quran_Completed": "={{ $node[\"Code in JavaScript10\"].json.task === 'Quran' ? true : ($node[\"Get row(s) in sheet5\"].json.Quran_Completed || undefined) }}",
+            "Quran_Proof_Link": "={{ $node[\"Code in JavaScript10\"].json.task === 'Quran' ? $node[\"Upload file5\"].json.webViewLink : ($node[\"Get row(s) in sheet5\"].json.Quran_Proof_Link || undefined) }}",
+            "Phone_Number": "={{ $('Get row(s) in sheet5').item.json.Phone_Number ? $('Get row(s) in sheet5').item.json.Phone_Number : $('Code in JavaScript10').item.json.phone }}",
+            "Date": "={{ $('Get row(s) in sheet5').item.json.Date ? $('Get row(s) in sheet5').item.json.Date : $('Code in JavaScript10').item.json.date }}"
+          },
+          "matchingColumns": [
+            "UID"
+          ],
+          "schema": [
+            {
+              "id": "UID",
+              "displayName": "UID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone_Number",
+              "displayName": "Phone_Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Fajr_Completed",
+              "displayName": "Fajr_Completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fajr_Proof_Link",
+              "displayName": "Fajr_Proof_Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeepWork_Completed",
+              "displayName": "DeepWork_Completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeepWork_Proof_Link",
+              "displayName": "DeepWork_Proof_Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quran_Completed",
+              "displayName": "Quran_Completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quran_Proof_Link",
+              "displayName": "Quran_Proof_Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        80,
+        416
+      ],
+      "id": "0c0a3e0f-90da-427e-bb95-7a09a02ce4b8",
+      "name": "Append or update row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_DOCUMENT_ID",
+          "mode": "list",
+          "cachedResultName": "Monk_Mode_DB",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1744954996,
+          "mode": "list",
+          "cachedResultName": "Feuille 2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit#gid=1744954996"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "UID",
+              "lookupValue": "={{ $node[\"Code in JavaScript10\"].json.date + $node[\"Code in JavaScript10\"].json.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -256,
+        416
+      ],
+      "id": "45edefd6-5daf-4a71-9eed-9ae8e57e5e0b",
+      "name": "Get row(s) in sheet5",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -2336,
+        976
+      ],
+      "id": "2785018c-bd94-457e-b5f7-e6b1213b4739",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        1360
+      ],
+      "id": "8c9900c2-640d-4cf1-a744-38a39572d129",
+      "name": "Embeddings OpenAI"
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pinecone_content }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        1216
+      ],
+      "id": "ff5d6dbc-9199-424a-8b08-46ee18d2949d",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "community-rag-db",
+          "mode": "list",
+          "cachedResultName": "community-rag-db"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -304,
+        992
+      ],
+      "id": "5dfcf5e2-6289-42f5-9c4b-7dcbf6094dde",
+      "name": "Pinecone Vector Store"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -2656,
+        976
+      ],
+      "id": "d50372c7-fa48-4156-8705-2222a42f456d",
+      "name": "Download file"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "876851be-106a-4d5d-8fde-1fd4c91567a0",
+              "leftValue": "={{ $('Webhook1').item.json.body.messages[0].from_me }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "2a14d3d8-5fea-46be-afd9-47965a4099a6",
+              "leftValue": "={{ $('Webhook1').item.json.body.messages[0].chat_id }}",
+              "rightValue": "YOUR_GROUP_ID@g.us",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "36b43afe-e97f-46b5-a16b-3e760dbf6b49",
+              "leftValue": "={{ $('Webhook1').item.json.body.messages[0].type }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "47128ca1-5897-4bab-b07f-c2ed18539674",
+              "leftValue": "={{ $json.wordCount }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -1936,
+        2032
+      ],
+      "id": "e30f00e1-020a-4edf-9ade-0627b00f21e3",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook1').item.json.body.messages[0].from }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -400,
+        2624
+      ],
+      "id": "2cec2a64-18f2-4307-85f7-30d2edd974b5",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        2560
+      ],
+      "id": "dcd6db1f-cc0f-4deb-bab5-fe0f5ae5cebf",
+      "name": "Embeddings OpenAI1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook1').item.json.body.messages[0].text.body }}",
+        "options": {
+          "systemMessage": "You are an expert Moroccan Community Manager and Consultant for \"Handel Education\", assisting members in a WhatsApp group.\n\nCRITICAL INSTRUCTIONS:\n\n1. STRICT RAG (ZERO HALLUCINATION): You must formulate your answer *EXCLUSIVELY* using the context retrieved from the vector database. You are strictly forbidden from using outside knowledge or guessing.\n\n2. THE SILENT KILL SWITCH (ABSOLUTE RULE): You must completely abort the response and output EXACTLY and ONLY the word \"IGNORE\" if ANY of the following conditions are met:\n   - The user's message is NOT a direct question or request for information (e.g., if it's just small talk, a greeting like \"salam\", a thank you, or a general statement).\n   - The retrieved context does NOT contain the clear, specific answer to the user's query.\n   If either condition is met, do not explain, do not apologize. Output ONLY the word: IGNORE\n\n3. LANGUAGE: If you DO have the exact answer in the context, reply exclusively in Moroccan Darija using the Arabic alphabet.\n\n4. TONE & FORMAT: WhatsApp style. Be direct, extremely pragmatic, and highly professional. Do not sound robotic. Use short paragraphs and a maximum of 1 or 2 relevant emojis. Get straight to the point."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -624,
+        1856
+      ],
+      "id": "fdba5180-4dab-41e1-871a-ae2ebedb54be",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -576,
+        2640
+      ],
+      "id": "0326be0f-fac8-48f3-8617-6dbeb2d28acd",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gate.whapi.cloud/messages/text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=to",
+              "value": "={{ $('Webhook1').item.json.body.messages[0].chat_id }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.output }}"
+            },
+            {
+              "name": "quoted",
+              "value": "={{ $('Webhook1').item.json.body.messages[0].id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        1648
+      ],
+      "id": "af60f886-8c44-4738-8337-c953b997167d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.cleanText;\nconst maxChars = 1500;\n\nlet paragraphs = text.split(/\\n\\s*\\n/);\n\nlet chunks = [];\nlet current = \"\";\nfor (let p of paragraphs) {\n\n  if ((current + p).length < maxChars) {\n    current += \"\\n\\n\" + p;\n  } else {\n    chunks.push({ json: { chunk: current.trim() } });\n    current = p;\n  }\n}\n\nif (current) {\n  chunks.push({ json: { chunk: current.trim() } });\n}\n\nreturn chunks;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1616,
+        976
+      ],
+      "id": "cc7cf703-0a30-408b-a838-c1b8ca4e25c7",
+      "name": "Smart Chunking"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a strict data extractor.\nExtract factual information from the text provided below and convert it into Question-Answer pairs optimized for a vector database.\n\nSTRICT RULES:\n1. Generate 1 to 5 Q/A pairs. If there is not enough information, generate fewer.\n2. ONLY use the provided text. Do not invent, guess, or infer anything.\n3. STANDALONE CONTEXT: Every generated question MUST be highly specific and self-contained (e.g., instead of \"What is the triangle?\", use \"What are the three pillars of the credibility triangle for freelancers?\").\n4. LANGUAGE RULE: All generated questions and answers MUST be exclusively in Standard Arabic (Fusha), regardless of the input language.\n5. FORMAT: You must strictly output a valid JSON object containing a single key \"qna\" with an array of objects. Do NOT wrap the JSON in markdown formatting or code blocks. Output ONLY raw JSON.\n\nExpected JSON format:\n{\n  \"qna\": [\n    { \"question\": \"السؤال الدقيق هنا...\", \"answer\": \"الجواب هنا...\" }\n  ]\n}\n\nTEXT TO ANALYZE:\n###\n{{ $json.chunk }}\n###"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -1200,
+        992
+      ],
+      "id": "73c6589c-b8b6-4f71-b25e-5b588e1d151f",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allQna = [];\n\nfor (const item of $input.all()) {\n  let extractedData = null;\n\n  // 1. Njebdou l'data mn dak l'massar l'mkhbbe3 (kima f tsweera 4)\n  if (item.json.output && Array.isArray(item.json.output) && item.json.output[0].content) {\n      extractedData = item.json.output[0].content[0].text;\n  } else {\n      extractedData = item.json.text || item.json.output;\n  }\n\n  if (!extractedData) continue;\n\n  try {\n    let data;\n    \n    // 2. Hada howa l'Fix: n8n b3d lmerrat kay-parsi l'JSON bo7do\n    if (typeof extractedData === 'object' && extractedData !== null) {\n        data = extractedData; // Rah deja object, makhasnach n-parsiweh\n    } else if (typeof extractedData === 'string') {\n        // N9iweh w n-parsiweh ila kan string\n        let cleaned = extractedData.replace(/```json/gi, \"\").replace(/```/g, \"\").trim();\n        data = JSON.parse(cleaned);\n    }\n\n    // 3. Nferr9ou les Q&A\n    if (data && data.qna && Array.isArray(data.qna)) {\n      data.qna.forEach(qa => {\n        allQna.push({\n          json: {\n            pinecone_content: `Question: ${qa.question}\\nRéponse: ${qa.answer}`,\n            source: \"Workflow_Ingestion\"\n          }\n        });\n      });\n    }\n  } catch (error) {\n    // ⚠️ L'Anti-Piège: Ila wq3 mochkil db, aytkteb lik f l'output bach nchoufouh!\n    allQna.push({\n        json: {\n            DEBUG_ERROR: \"Parsing failed\",\n            DETAILS: error.message,\n            RAW: extractedData\n        }\n    });\n  }\n}\n\nreturn allQna;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        992
+      ],
+      "id": "ba0d06e0-f72e-417e-a070-a3882f494c08",
+      "name": "Parse JSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "let text = $input.first().json.text;\n\n// Remove hyphen line breaks\ntext = text.replace(/-\\n/g, \"\");\n\n// Remove excessive line breaks\ntext = text.replace(/\\n{3,}/g, \"\\n\\n\");\n\n// Remove page numbers alone\ntext = text.replace(/^\\s*\\d+\\s*$/gm, \"\");\n\n// Remove Page X patterns\ntext = text.replace(/Page\\s+\\d+/gi, \"\");\n\n// Trim\ntext = text.replace(/[ \\t]+/g, \" \").trim();\n\nreturn [{ json: { cleanText: text } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2032,
+        976
+      ],
+      "id": "d5de8246-ac3a-4459-a9fa-2a26040a03a2",
+      "name": "Clean Text"
+    },
+    {
+      "parameters": {
+        "chunkSize": 5000
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        1360
+      ],
+      "id": "7cc516a1-84a4-4ae9-8dbb-949f128010ea",
+      "name": "Character Text Splitter1"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Get Data only from the vector store, dont answer from anywhere else",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "community-rag-db",
+          "mode": "list",
+          "cachedResultName": "community-rag-db"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        2320
+      ],
+      "id": "e6a920a2-59bd-4305-86cd-a588e54c9fb6",
+      "name": "base de donnee"
+    },
+    {
+      "parameters": {
+        "jsCode": "const firstItem = $input.first().json;\n\nconst message =\n  firstItem?.body?.messages?.[0]?.type === 'text'\n    ? firstItem.body.messages[0].text?.body?.trim() || ''\n    : '';\n\nreturn {\n  json: {\n    text: message,\n    wordCount: message ? message.split(/\\s+/).length : 0\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2288,
+        2032
+      ],
+      "id": "cdfde083-62f8-4009-a43a-32d9718299bb",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_FOLDER_ID",
+          "mode": "id"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2928,
+        992
+      ],
+      "id": "e9ea9e13-3d1d-4fc9-b04c-542449fb4d4f",
+      "name": "Watch file add !"
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "=rate_limit:{{ $('Webhook1').item.json.body.messages[0].chat_id }}:{{ $now.toFormat('yyyy-MM-dd-HH') }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        1984
+      ],
+      "id": "bf3b8f43-3922-401c-a8e7-a91a13b831d8",
+      "name": "Redis"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "04c5ed84-d8b7-4b1a-80ab-f9d68604c333",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "IGNORE",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -272,
+        1856
+      ],
+      "id": "f7485d13-f699-45c7-9943-7284c682baa1",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "80f8285e-a4de-41f0-a3a8-d70ba9a67c36",
+              "leftValue": "={{ $json[\"rate_limit:\" + $('Webhook1').item.json.body.messages[0].chat_id + \":\" + $now.toFormat('yyyy-MM-dd-HH')] }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -1184,
+        1984
+      ],
+      "id": "16f2691f-8cee-419e-90c7-68b9bcfb66a6",
+      "name": "Filter2"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=rate_limit:{{ $('Webhook1').item.json.body.messages[0].chat_id }}:{{ $now.toFormat('yyyy-MM-dd-HH') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        2064
+      ],
+      "id": "c3cca141-28ec-41b4-9081-4f4401f5cd0b",
+      "name": "Redis1"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=rate_limit:{{ $('Webhook1').item.json.body.messages[0].chat_id }}:{{ $now.toFormat('yyyy-MM-dd-HH') }}",
+        "value": "={{ String($json.propertyName ? parseInt($json.propertyName) - 1 : 0) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        160,
+        2064
+      ],
+      "id": "777aa3f5-d09f-4056-9d6b-91f2f042630c",
+      "name": "Redis2"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=rate_limit:{{ $('Webhook1').item.json.body.messages[0].chat_id }}:{{ $now.toFormat('yyyy-MM-dd-HH') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        448,
+        2064
+      ],
+      "id": "e1dcaac4-3cf8-4a28-9938-2f548fb4f69a",
+      "name": "Redis3"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "YOUR_WEBHOOK_PATH",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2880,
+        1952
+      ],
+      "id": "85ad1a92-ae5b-409e-a6dc-05ba38ec8ca4",
+      "name": "Webhook1",
+      "webhookId": "YOUR_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "content": "RAG AI SUPPORT",
+        "height": 1952,
+        "width": 6400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3248,
+        1504
+      ],
+      "id": "455d22d9-dd40-436a-a346-b87ca69e4c54",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "knowledg of rag ai agent ",
+        "height": 752,
+        "width": 6416,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3248,
+        736
+      ],
+      "id": "bf152d57-d6eb-41eb-8f72-87a2ccc5b88f",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "chack conditions ",
+        "height": 496,
+        "width": 6384,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3248,
+        240
+      ],
+      "id": "f54b9588-8fd0-459a-83a9-9b031a3d1098",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "nonalphabetical-larae-figurately.ngrok-free.dev",
+            "content-length": "367",
+            "accept": "application/json",
+            "baggage": "sentry-environment=prod,sentry-public_key=22217dc31eef5d21afad60404664acb9,sentry-trace_id=1d7e779272274b91941360b755c1f786,sentry-sample_rand=0.7798884824743952",
+            "content-type": "application/json",
+            "sentry-trace": "1d7e779272274b91941360b755c1f786-ba44714bf799d7a5",
+            "x-forwarded-for": "65.109.73.117",
+            "x-forwarded-host": "nonalphabetical-larae-figurately.ngrok-free.dev",
+            "x-forwarded-proto": "https",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "messages": [
+              {
+                "id": "PrAASsPhDzpewMc-gksBq53hXDiEjQ",
+                "from_me": false,
+                "type": "text",
+                "chat_id": "120363406295860365@g.us",
+                "timestamp": 1772071095,
+                "source": "web",
+                "device_id": 46,
+                "chat_name": "handel test",
+                "text": {
+                  "body": "DRARI  CHI TARIQA BACH NAHDER MEA CLIENT"
+                },
+                "from": "212XXXXXXXXX",
+                "from_name": "."
+              }
+            ],
+            "event": {
+              "type": "messages",
+              "event": "post"
+            },
+            "channel_id": "WONDRW-SRWX4"
+          },
+          "webhookUrl": "http://localhost:5678/webhook-test/97b3af08-8e07-444a-8ab7-dc03392f74dc",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter4": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet4": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript9": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript10": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Upload file5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file5": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet5": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Clean Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "base de donnee",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Chunking": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Text": {
+      "main": [
+        [
+          {
+            "node": "Smart Chunking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Character Text Splitter1": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "base de donnee": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watch file add !": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Filter2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "Redis3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e5336868-b893-4c9a-b7da-7e39eb586cd3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "6vOlBW5hjwqaHPH5",
+  "tags": []
+}

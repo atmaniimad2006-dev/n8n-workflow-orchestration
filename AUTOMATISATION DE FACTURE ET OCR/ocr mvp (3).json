@@ -1,0 +1,453 @@
+{
+  "name": "ocr mvp",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "text": "Tu es un Expert-Comptable Marocain Senior et un Spécialiste de l'Extraction de Données très précis.\nTa mission est d'analyser l'image de cette facture et d'extraire les informations demandées sous format STRICTEMENT JSON. Ne renvoie AUCUN autre texte, pas de markdown ```json, juste l'objet JSON pur.\n\nRÈGLES D'EXTRACTION :\n1. Nombres : Utilise le point comme séparateur décimal, sans espaces (ex: 1500.50).\n2. Si une information est introuvable, renvoie null.\n3. Date : Format YYYY-MM-DD.\n\nHACK 1 - VÉRIFICATION MATHÉMATIQUE :\nTu dois calculer toi-même la somme (Montant HT + Montant TVA).\nCompare ton résultat au Montant TTC affiché sur la facture. \nSi c'est identique à 1 centime près, \"est_valide\" = true. Sinon, false, et explique l'erreur dans \"details_erreur\".\n\nHACK 2 - CATÉGORISATION (Plan Comptable Marocain) :\nAnalyse la nature de l'achat et le nom du fournisseur, et choisis LA MEILLEURE catégorie parmi cette liste stricte :\n- \"611 - Achats de marchandises\" (Si c'est pour revendre)\n- \"612 - Achats de matières et fournitures\" (Eau, électricité, fournitures bureau)\n- \"613 - Locations et charges locatives\"\n- \"614 - Transports et déplacements\" (ONCF, Carburant, Billets)\n- \"618 - Autres charges externes\" (Restaurant, Réception, Publicité)\n- \"235 - Mobilier, matériel de bureau et aménagement\" (Achat PC, téléphone, bureau)\n\nFORMAT JSON ATTENDU :\n{\n  \"fournisseur\": \"Nom de l'entreprise qui facture\",\n  \"ice_fournisseur\": \"L'identifiant Commun d'Entreprise à 15 chiffres\",\n  \"date_facture\": \"YYYY-MM-DD\",\n  \"numero_facture\": \"Numéro de la facture\",\n  \"montants\": {\n    \"ht\": 0.00,\n    \"tva\": 0.00,\n    \"ttc\": 0.00\n  },\n  \"verification_mathematique\": {\n    \"est_valide\": true/false,\n    \"details_erreur\": \"Texte de l'erreur ou null\"\n  },\n  \"categorie_comptable\": \"La catégorie choisie dans la liste\"\n}",
+        "inputType": "base64",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        336,
+        -288
+      ],
+      "id": "d3046b66-8428-4c57-b1ec-c0c65e2d9b46",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_OPENAI_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Kanjbdou l'objet li ja mn OpenAI (wakha ykoun wste array)\nlet data = $json[0] || $json; \n\n// 2. Kanjbdou l'text li fih l'markdown\nlet rawText = data.content[0].text;\n\n// 3. Kanms7ou l'balises ```json w ``` bach nb9aw ghir m3a l'JSON pur\nlet cleanJson = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();\n\n// 4. Kankhriwh l n8n m9ad\nreturn JSON.parse(cleanJson);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -288
+      ],
+      "id": "353f7c23-7597-445b-8bc7-fff4460bd1e3",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "curlImport": "",
+        "httpVariantWarning": "",
+        "method": "POST",
+        "url": "https://v2.convertapi.com/convert/pdf/to/png",
+        "": "",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "convertApi",
+        "provideSslCertificates": false,
+        "sendQuery": false,
+        "sendHeaders": false,
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "File",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "StoreFile",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {},
+        "infoMessage": ""
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        -576
+      ],
+      "id": "9708b788-eecc-4e12-a0cf-3e1b52b37d05",
+      "name": "ConvertAPI HTTP Request",
+      "extendsCredential": "convertApi",
+      "credentials": {
+        "convertApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_CONVERTAPI_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "df702761-8663-48bf-a22b-439c22fba6bc",
+              "leftValue": "={{ $('Webhook').item.json.body.file_path }}",
+              "rightValue": ".pdf",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -32,
+        -304
+      ],
+      "id": "a03d3473-fcb1-4772-a188-ab423dae2823",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.Files[0].Url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        -576
+      ],
+      "id": "009b9d24-ae13-496b-ad5d-19072e1bb4c0",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_DOCUMENT_ID",
+          "mode": "list",
+          "cachedResultName": "COMPTABLE",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_DOCUMENT_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Feuille 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AtaoLXlglC2_8uNpJiGLGCS2LQ9zzAG56oFJI_naO9A/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_FACTURE": "={{ $('Webhook').item.json.body.id }}",
+            "NOM DE SOCIETER ": "={{ $json.fournisseur }}",
+            "ICE ": "={{ $json.ice_fournisseur }}",
+            "DATE": "={{ $json.date_facture }}",
+            "HT": "={{ $json.montants.ht }}",
+            "TVA": "={{ $json.montants.tva }}",
+            "TTC": "={{ $json.montants.ttc }}",
+            "CATEGORIE MACHINE ": "={{ $json.categorie_comptable }}",
+            "STATUS CALCUL ": "={{ $json.verification_mathematique.est_valide }}",
+            "Erreur": "={{ $json.verification_mathematique.details_erreur }}",
+            "drive link ": "={{ $('Webhook').item.json.body.file_path }}"
+          },
+          "matchingColumns": [
+            "ID_FACTURE"
+          ],
+          "schema": [
+            {
+              "id": "ID_FACTURE",
+              "displayName": "ID_FACTURE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "IMAGE FACTURE",
+              "displayName": "IMAGE FACTURE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ICE ",
+              "displayName": "ICE ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NOM DE SOCIETER ",
+              "displayName": "NOM DE SOCIETER ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "HT",
+              "displayName": "HT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TVA",
+              "displayName": "TVA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TTC",
+              "displayName": "TTC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CATEGORIE MACHINE ",
+              "displayName": "CATEGORIE MACHINE ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "STATUS CALCUL ",
+              "displayName": "STATUS CALCUL ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Erreur",
+              "displayName": "Erreur",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "drive link ",
+              "displayName": "drive link ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        -304
+      ],
+      "id": "9945c252-38fa-4251-91ed-38dd6a66f0e0",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "YOUR_GOOGLE_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-invoice",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -608,
+        -352
+      ],
+      "id": "a05f5c8a-5443-476e-9bb3-5aa8e6d5ec57",
+      "name": "Webhook",
+      "webhookId": "YOUR_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -400,
+        -352
+      ],
+      "id": "ace4e095-322e-4e6a-9c62-61d204163d68",
+      "name": "HTTP Request1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "ConvertAPI HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ConvertAPI HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "9726fa96-5db3-4311-80d9-56a3b259dd80",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "IxpOKapQGdF6J1XL",
+  "tags": []
+}

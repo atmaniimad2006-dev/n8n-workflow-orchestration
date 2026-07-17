@@ -1,0 +1,20 @@
+# n8n Workflow Orchestration - .gitignore
+
+# Credentials (never commit real keys)
+*.credentials.json
+.env
+.env.local
+
+# n8n internal
+.n8n/
+*.sqlite
+*.sqlite-journal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
